@@ -16,98 +16,27 @@
 #define true 1
 #endif
 
-// Default order is 4.
-#define DEFAULT_ORDER 4
-
+/* FOR TEST RUN ONLY
 #define INTERNAL_ORDER 4
 #define LEAF_ORDER 4
-/*
+*/
+
 #define INTERNAL_ORDER 249
 #define LEAF_ORDER 32
-*/
-// Minimum order is necessarily 3.  We set the maximum
-// order arbitrarily.  You may change the maximum order.
-#define MIN_ORDER 3
-#define MAX_ORDER 250
-
-// Constants for printing part or all of the GPL license.
-#define LICENSE_FILE "LICENSE.txt"
-#define LICENSE_WARRANTEE 0
-#define LICENSE_WARRANTEE_START 592
-#define LICENSE_WARRANTEE_END 624
-#define LICENSE_CONDITIONS 1
-#define LICENSE_CONDITIONS_START 70
-#define LICENSE_CONDITIONS_END 625
 
 // Number of pages to allocate when there is no free page.
 #define NEW_PAGE 5
 
 // TYPES.
 
-/* Type representing the record
- * to which a given key refers.
- * In a real B+ tree system, the
- * record would hold data (in a database)
- * or a file (in an operating system)
- * or some other information.
- * Users can rewrite this part of the code
- * to change the type and content
- * of the value field.
+/* Type representing a queue to print the B+ tree.
+ * This type helps the print_tree function to print out
+ * B+ tree in BFS.
  */
-typedef struct record {
-    char value[120];
-} record;
-
 typedef struct queue {
     int64_t page;
     struct queue * next;
 } queue;
-
-/* Type representing a node in the B+ tree.
- * This type is general enough to serve for both
- * the leaf and the internal node.
- * The heart of the node is the array
- * of keys and the array of corresponding
- * pointers.  The relation between keys
- * and pointers differs between leaves and
- * internal nodes.  In a leaf, the index
- * of each key equals the index of its corresponding
- * pointer, with a maximum of order - 1 key-pointer
- * pairs.  The last pointer points to the
- * leaf to the right (or NULL in the case
- * of the rightmost leaf).
- * In an internal node, the first pointer
- * refers to lower nodes with keys less than
- * the smallest key in the keys array.  Then,
- * with indices i starting at 0, the pointer
- * at i + 1 points to the subtree with keys
- * greater than or equal to the key in this
- * node at index i.
- * The num_keys field is used to keep
- * track of the number of valid keys.
- * In an internal node, the number of valid
- * pointers is always num_keys + 1.
- * In a leaf, the number of valid pointers
- * to data is always num_keys.  The
- * last leaf pointer points to the next leaf.
- */
-typedef struct node {
-    void ** pointers;
-    int * keys;
-    struct node * parent;
-    bool is_leaf;
-    int num_keys;
-    struct node * next; // Used for queue.
-} node;
-
-/*
-typedef struct header_page {
-    int64_t free_off;
-    int64_t root_off;
-    int64_t num_pages;
-    char reserved[4072];
-} header_page;
-*/
 
 
 // GLOBALS.
@@ -132,15 +61,9 @@ extern int leaf_order;
  */
 extern queue * q;
 
-/* The user can toggle on and off the "verbose"
- * property, which causes the pointer addresses
- * to be printed out in hexadecimal notation
- * next to their corresponding keys.
- */
-extern bool verbose_output;
-
 /* The file stream is used to read from file and/or
  * write to file.
+ * The file descriptor is used to fdatasync.
  */
 FILE * data_file;
 int fd;
@@ -187,45 +110,46 @@ void license_notice( void );
 void print_license( int licence_part );
 void usage_1( void );
 void usage_2( void );
-void usage_3( void );
 void enqueue( int64_t new_node );
 int64_t dequeue( void );
-int height( node * root );
+int height( void );
 int path_to_root( int64_t child );
 void print_leaves( void );
 void print_tree( void );
-void find_and_print(int64_t key); 
+void find_and_print(int64_t key);
+/*
 void find_and_print_range(node * root, int range1, int range2, bool verbose); 
 int find_range( node * root, int key_start, int key_end, bool verbose,
         int returned_keys[], void * returned_pointers[]); 
+*/
 int64_t find_leaf( int64_t key );
 char * find( int64_t key );
 int cut( int length );
 
 // Insertion.
 
-//record * make_record(char * value);
 int64_t make_node( void );
 int64_t make_leaf( void );
 int get_left_index(int64_t parent, int64_t left);
-int64_t insert_into_leaf( int64_t leaf, int64_t key, char * value );
-int64_t insert_into_leaf_after_splitting(int64_t leaf, int64_t key, char * value);
-int64_t insert_into_node(int64_t n, int left_index, int64_t key, int64_t right);
-int64_t insert_into_node_after_splitting(int64_t old_node, int left_index,
+void insert_into_leaf( int64_t leaf, int64_t key, char * value );
+void insert_into_leaf_after_splitting(int64_t leaf, int64_t key, char * value);
+void insert_into_node(int64_t n, int left_index, int64_t key, int64_t right);
+void insert_into_node_after_splitting(int64_t old_node, int left_index,
                                         int64_t key, int64_t right);
-int64_t insert_into_parent(int64_t left, int64_t key, int64_t right);
-int64_t insert_into_new_root(int64_t left, int64_t key, int64_t right);
+void insert_into_parent(int64_t left, int64_t key, int64_t right);
+void insert_into_new_root(int64_t left, int64_t key, int64_t right);
 void start_new_tree(int64_t key, char * value);
 int insert( int64_t key, char * value );
 
 // Deletion.
 
 int get_neighbor_index( int64_t n );
-int64_t adjust_root( void );
-int64_t coalesce_nodes(int64_t n, int64_t neighbor, int neighbor_index, int64_t k_prime);
-int64_t redistribute_nodes(int64_t n, int64_t neighbor, int neighbor_index, 
+int64_t remove_entry_from_node(int64_t n, int64_t key);
+void adjust_root( int64_t root );
+void coalesce_nodes(int64_t n, int64_t neighbor, int neighbor_index, int64_t k_prime);
+void redistribute_nodes(int64_t n, int64_t neighbor, int neighbor_index, 
                             int k_prime_index, int64_t k_prime);
-int64_t delete_entry( int64_t n, int64_t key );
+void delete_entry( int64_t n, int64_t key );
 
 int delete( int64_t key );
 /*

@@ -1,9 +1,21 @@
 /*
  *  bpt.c  
  */
-#define Version "1.14"
+#define OriginalVersion "1.14"
+#define Version "1.0"
 /*
+ *  Disk-Based B+ Tree Implementation
+ *  Copyright (C) 2017  Jeonghoon Lee  galeb716@daum.net
+ *  ALL rights reserved.
+ *  Copyright and license information of the original source code is
+ *  described below.
  *
+ *  Author:  Jeonghoon Lee
+ *    galeb716@daum.net
+ *  Original Date:  23 Oct 2017
+ *  Last modified:  12 Nov 2017
+ *
+ *  ---------------------------------------------------------------------------
  *  bpt:  B+ Tree Implementation
  *  Copyright (C) 2010-2016  Amittai Aviram  http://www.amittai.com
  *  All rights reserved.
@@ -40,15 +52,10 @@
  *  Last modified: 17 June 2016
  *
  *  This implementation demonstrates the B+ tree data structure
- *  for educational purposes, includin insertion, deletion, search, and display
+ *  for educational purposes, including insertion, deletion, search, and display
  *  of the search path, the leaves, or the whole tree.
- *  
+ *  ---------------------------------------------------------------------------
  *  Must be compiled with a C99-compliant C compiler such as the latest GCC.
- *
- *  Usage:  bpt [order]
- *  where order is an optional argument
- *  (integer MIN_ORDER <= order <= MAX_ORDER)
- *  defined as the maximal number of pointers in any node.
  *
  */
 
@@ -77,13 +84,6 @@ int leaf_order = LEAF_ORDER;
  */
 queue * q = NULL;
 
-/* The user can toggle on and off the "verbose"
- * property, which causes the pointer addresses
- * to be printed out in hexadecimal notation
- * next to their corresponding keys.
- */
-bool verbose_output = false;
-
 
 // FUNCTION DEFINITIONS.
 
@@ -95,8 +95,6 @@ int open_db( char * pathname ) {
     if ((data_file = fopen(pathname, "r+")) != NULL) {
         return 0;
     }
-
-    //int64_t offset;
 
     if ((data_file = fopen(pathname, "w+")) == NULL) {
         return -1;
@@ -139,63 +137,29 @@ int open_db( char * pathname ) {
 /* Copyright and license notice to user at startup. 
  */
 void license_notice( void ) {
+    printf("Disk-Based B+ Tree Version %s\n"
+            "\t-- Copyright (C) 2017  Jeonghoon Lee  galeb716@daum.net\n"
+            "Copyright and license information of the original code is "
+            "described below.\n", Version);
+    printf("=================================================================="
+            "==============\n");
     printf("bpt version %s -- Copyright (C) 2010  Amittai Aviram "
-            "http://www.amittai.com\n", Version);
-    printf("This program comes with ABSOLUTELY NO WARRANTY; for details "
-            "type `show w'.\n"
+            "http://www.amittai.com\n", OriginalVersion);
+    printf("This program comes with ABSOLUTELY NO WARRANTY.\n"
             "This is free software, and you are welcome to redistribute it\n"
-            "under certain conditions; type `show c' for details.\n\n");
-}
-
-
-/* Routine to print portion of GPL license to stdout.
- */
-void print_license( int license_part ) {
-    int start, end, line;
-    FILE * fp;
-    char buffer[0x100];
-
-    switch(license_part) {
-    case LICENSE_WARRANTEE:
-        start = LICENSE_WARRANTEE_START;
-        end = LICENSE_WARRANTEE_END;
-        break;
-    case LICENSE_CONDITIONS:
-        start = LICENSE_CONDITIONS_START;
-        end = LICENSE_CONDITIONS_END;
-        break;
-    default:
-        return;
-    }
-
-    fp = fopen(LICENSE_FILE, "r");
-    if (fp == NULL) {
-        perror("print_license: fopen");
-        exit(EXIT_FAILURE);
-    }
-    for (line = 0; line < start; line++)
-        fgets(buffer, sizeof(buffer), fp);
-    for ( ; line < end; line++) {
-        fgets(buffer, sizeof(buffer), fp);
-        printf("%s", buffer);
-    }
-    fclose(fp);
+            "under certain conditions.\n");
+    printf("=================================================================="
+            "==============\n\n");
 }
 
 
 /* First message to the user.
  */
 void usage_1( void ) {
-    printf("B+ Tree of Order %d.\n", order);
-    printf("Following Silberschatz, Korth, Sidarshan, Database Concepts, "
-           "5th ed.\n\n"
-           "To build a B+ tree of a different order, start again and enter "
-           "the order\n"
-           "as an integer argument:  bpt <order>  ");
-    printf("(%d <= order <= %d).\n", MIN_ORDER, MAX_ORDER);
+    printf("B+ Tree of Internal Order %d and Leaf Order %d.\n", order, leaf_order);
     printf("To start with input from a file of newline-delimited integers, \n"
-           "start again and enter the order followed by the filename:\n"
-           "bpt <order> <inputfile> .\n");
+           "start again and enter the input filename after the data filename:\n"
+           "%% bpt <datafile> <inputfile>.\n");
 }
 
 
@@ -203,30 +167,20 @@ void usage_1( void ) {
  */
 void usage_2( void ) {
     printf("Enter any of the following commands after the prompt > :\n"
-    "\to <k>  -- Open existing data file using <k> or create one if not existed.\n"
-    "\ti <k1> <k2> -- Insert <k1> (an integer) as both key and <k2> (a string) as value).\n"
+    "\to <k>  -- Open existing data file <k> or create one if not existed.\n"
+    "\ti <k1> <k2> -- Insert <k1> (an integer) as key and <k2> (a string) as value).\n"
     "\tf <k>  -- Find the value under key <k>.\n"
     "\tp <k>  -- Print the path from the root to key <k> and its associated "
            "value.\n"
-    "\tr <k1> <k2> -- Print the keys and values found in the range "
-            "[<k1>, <k2>\n"
+    //"\tr <k1> <k2> -- Print the keys and values found in the range "
+    //        "[<k1>, <k2>\n"
     "\td <k>  -- Delete key <k> and its associated value.\n"
-    "\tx -- Destroy the whole tree.  Start again with an empty tree of the "
-           "same order.\n"
+    //"\tx -- Destroy the whole tree.  Start again with an empty tree of the "
+    //       "same order.\n"
     "\tt -- Print the B+ tree.\n"
     "\tl -- Print the keys of the leaves (bottom row of the tree).\n"
-    "\tv -- Toggle output of pointer addresses (\"verbose\") in tree and "
-           "leaves.\n"
     "\tq -- Quit. (Or use Ctl-D.)\n"
     "\t? -- Print this help message.\n");
-}
-
-
-/* Brief usage note.
- */
-void usage_3( void ) {
-    printf("Usage: ./bpt [<order>]\n");
-    printf("\twhere %d <= order <= %d .\n", MIN_ORDER, MAX_ORDER);
 }
 
 
@@ -272,10 +226,8 @@ int64_t dequeue( void ) {
  * of the tree (with their respective
  * pointers, if the verbose_output flag is set.
  */
-//void print_leaves( node * root ) {
 void print_leaves( void ) {
     int i;
-    //node * c = root;
     int64_t c = get_root();
 
     if (c == 0) {
@@ -283,24 +235,14 @@ void print_leaves( void ) {
         return;
     }
     while (!get_is_leaf(c))
-        //c = c->pointers[0];
         c = get_internal_value_at(c, 0);
     while (true) {
-        for (i = 0; i < get_num_keys(c); i++) {
-            /*
-            if (verbose_output)
-                printf("%lx ", (unsigned long)c->pointers[i]);
-                */
+        for (i = 0; i < get_num_keys(c); i++)
             printf("%ld ", get_leaf_key_at(c, i));
-        }
-        /*
-        if (verbose_output)
-            printf("%lx ", (unsigned long)c->pointers[leaf_order - 1]);
-        */
 
         // move to the right sibling if it exists
         if (get_right_sibling(c) != 0) {
-            printf(" | ");
+            printf("| ");
             c = get_right_sibling(c);
         }
         else
@@ -314,11 +256,11 @@ void print_leaves( void ) {
  * of the tree, which length in number of edges
  * of the path from the root to any leaf.
  */
-int height( node * root ) {
+int height( void ) {
     int h = 0;
-    node * c = root;
-    while (!c->is_leaf) {
-        c = c->pointers[0];
+    int64_t c = get_root();
+    while (!get_is_leaf(c)) {
+        c = get_internal_value_at(c, 0);
         h++;
     }
     return h;
@@ -374,15 +316,7 @@ void print_tree( void ) {
                 printf("\n");
             }
         }
-        /*
-        if (verbose_output) 
-            printf("(%lx)", (unsigned long)n);
-        */
         for (i = 0; i < get_num_keys(n); i++) {
-            /*
-            if (verbose_output)
-                printf("%lx ", (unsigned long)n->pointers[i]);
-            */
             if (get_is_leaf(n))
                 printf("%ld ", get_leaf_key_at(n, i));
             else 
@@ -391,14 +325,7 @@ void print_tree( void ) {
         if (!get_is_leaf(n))
             for (i = 0; i <= get_num_keys(n); i++)
                 enqueue(get_internal_value_at(n, i));
-        /*
-        if (verbose_output) {
-            if (n->is_leaf) 
-                printf("%lx ", (unsigned long)n->pointers[leaf_order - 1]);
-            else
-                printf("%lx ", (unsigned long)n->pointers[n->num_keys]);
-        }
-        */
+
         printf("| ");
     }
     printf("\n");
@@ -409,15 +336,11 @@ void print_tree( void ) {
  * appropriate message to stdout.
  */
 void find_and_print(int64_t key) {
-    //record * r = find(root, key, verbose);
+
     char * r = find(key);
-    if (r == 0)
+    if (r == NULL)
         printf("Record not found under key %ld.\n", key);
-    else 
-        /*
-        printf("Record at %lx -- key %d, value %s.\n",
-                (unsigned long)r, key, r->value);
-        */
+    else
         printf("Record -- key %ld, value %s.\n", key, r);
 
     free(r);
@@ -482,10 +405,9 @@ int find_range( node * root, int key_start, int key_end, bool verbose,
  * if the verbose flag is set.
  * Returns the leaf containing the given key.
  */
-//node * find_leaf( node * root, int key, bool verbose ) {
 int64_t find_leaf( int64_t key ) {
     int i = 0;
-    //node * c = root;
+
     int64_t c = get_root();
     if (c == 0) {
         printf("Empty tree.\n");
@@ -493,35 +415,16 @@ int64_t find_leaf( int64_t key ) {
     }
 
     while (!get_is_leaf(c)) {
-        /*
-        if (verbose) {
-            printf("[");
-            for (i = 0; i < c->num_keys - 1; i++)
-                printf("%d ", c->keys[i]);
-            printf("%d] ", c->keys[i]);
-        }
-        */
+
         i = 0;
-        //while (i < c->num_keys) {
         while (i < get_num_keys(c)) {
-            if (key >= get_leaf_key_at(c, i)) i++;
+            if (key >= get_internal_key_at(c, i)) i++;
             else break;
         }
-        /*
-        if (verbose)
-            printf("%d ->\n", i);
-        */
-        //c = (node *)c->pointers[i];
+
         c = get_internal_value_at(c, i);
     }
-    /*
-    if (verbose) {
-        printf("Leaf [");
-        for (i = 0; i < c->num_keys - 1; i++)
-            printf("%d ", c->keys[i]);
-        printf("%d] ->\n", c->keys[i]);
-    }
-    */
+
     return c;
 }
 
@@ -529,10 +432,9 @@ int64_t find_leaf( int64_t key ) {
 /* Finds and returns the record to which
  * a key refers.
  */
-//record * find( node * root, int key, bool verbose ) {
 char * find( int64_t key ) {
     int i = 0;
-    //node * c = find_leaf( root, key, verbose );
+
     int64_t c = find_leaf( key );
     if (c == 0) return NULL;
     for (i = 0; i < get_num_keys(c); i++)
@@ -540,7 +442,6 @@ char * find( int64_t key ) {
     if (i == get_num_keys(c)) 
         return 0;
     else
-        //return (record *)c->pointers[i];
         return get_leaf_value_at(c, i);
 }
 
@@ -557,35 +458,15 @@ int cut( int length ) {
 
 // INSERTION
 
-// TODO : May be no need?
-
-/* Creates a new record to hold the value
- * to which a key refers.
- 
-record * make_record(char * value) {
-    record * new_record = (record *)malloc(sizeof(record));
-    if (new_record == NULL) {
-        perror("Record creation.");
-        exit(EXIT_FAILURE);
-    }
-    else {
-        strcpy(new_record->value, value);
-    }
-    return new_record;
-}
-*/
-
 
 /* Creates a new general node, which can be adapted
  * to serve as either a leaf or an internal node.
  */
-//node * make_node( void ) {
 int64_t make_node( void ) {
-    //node * new_node;
+
     int64_t new_node;
     int64_t num_pages, new_num_pages, next_free_page;
     new_node = get_free_page();
-    //new_node = malloc(sizeof(node));
 
     //allocate 5 new free pages and set new_node again
     if (new_node == 0) {
@@ -609,26 +490,9 @@ int64_t make_node( void ) {
     //rearrange free page list
     set_free_page(get_next_free_page(new_node));
 
-    /* do not need to allocate memory for keys and values in disk-based system
-    new_node->keys = malloc( (order - 1) * sizeof(int) );
-    if (new_node->keys == NULL) {
-        perror("New node keys array.");
-        exit(EXIT_FAILURE);
-    }
-    new_node->pointers = malloc( order * sizeof(void *) );
-    if (new_node->pointers == NULL) {
-        perror("New node pointers array.");
-        exit(EXIT_FAILURE);
-    }
-    */
-
-    //new_node->is_leaf = false;
     set_is_leaf(new_node, 0);
-    //new_node->num_keys = 0;
     set_num_keys(new_node, 0);
-    //new_node->parent = NULL;
     set_parent_page(new_node, 0);
-    //new_node->next = NULL;
 
     fd = fileno(data_file);
     fdatasync(fd);
@@ -641,16 +505,10 @@ int64_t make_node( void ) {
  * and then adapting it appropriately.
  */
 int64_t make_leaf( void ) {
-    //node * leaf = make_node();
+
     int64_t leaf = make_node();
-    //leaf->is_leaf = true;
+
     set_is_leaf(leaf, 1);
-    /*
-    free(leaf->keys);
-    free(leaf->pointers);
-    leaf->keys = malloc( (leaf_order - 1) * sizeof(int) );
-    leaf->pointers = malloc( leaf_order * sizeof(void *) );
-    */
 
     fd = fileno(data_file);
     fdatasync(fd);
@@ -677,7 +535,7 @@ int get_left_index(int64_t parent, int64_t left) {
  * key into a leaf.
  * Returns the altered leaf.
  */
-int64_t insert_into_leaf( int64_t leaf, int64_t key, char * value ) {
+void insert_into_leaf( int64_t leaf, int64_t key, char * value ) {
 
     int i, insertion_point;
 
@@ -694,7 +552,7 @@ int64_t insert_into_leaf( int64_t leaf, int64_t key, char * value ) {
     set_leaf_value_at(leaf, insertion_point, value);
     set_num_keys(leaf, get_num_keys(leaf) + 1);
     
-    return leaf;
+    return;
 }
 
 // TODO : Opmtimization
@@ -703,7 +561,7 @@ int64_t insert_into_leaf( int64_t leaf, int64_t key, char * value ) {
  * the tree's order, causing the leaf to be split
  * in half.
 */
-int64_t insert_into_leaf_after_splitting(int64_t leaf, int64_t key, char * value) {
+void insert_into_leaf_after_splitting(int64_t leaf, int64_t key, char * value) {
 
     int64_t new_leaf;
 
@@ -728,7 +586,6 @@ int64_t insert_into_leaf_after_splitting(int64_t leaf, int64_t key, char * value
     }
 
     insertion_index = 0;
-    //while (insertion_index < leaf_order - 1 && leaf->keys[insertion_index] < key)
     while (insertion_index < leaf_order - 1 && get_leaf_key_at(leaf, insertion_index) < key)
         insertion_index++;
 
@@ -743,26 +600,19 @@ int64_t insert_into_leaf_after_splitting(int64_t leaf, int64_t key, char * value
     temp_values[insertion_index] = value;
     //strcpy(temp_values[insertion_index], value);
 
-    //leaf->num_keys = 0;
     set_num_keys(leaf, 0);
 
     split = cut(leaf_order - 1);
 
     for (i = 0; i < split; i++) {
-        //leaf->pointers[i] = temp_pointers[i];
         set_leaf_value_at(leaf, i, temp_values[i]);
-        //leaf->keys[i] = temp_keys[i];
         set_leaf_key_at(leaf, i, temp_keys[i]);
-        //leaf->num_keys++;
         set_num_keys(leaf, get_num_keys(leaf) + 1);
     }
 
     for (i = split, j = 0; i < leaf_order; i++, j++) {
-        //new_leaf->pointers[j] = temp_pointers[i];
         set_leaf_value_at(new_leaf, j, temp_values[i]);
-        //new_leaf->keys[j] = temp_keys[i];
         set_leaf_key_at(new_leaf, j, temp_keys[i]);
-        //new_leaf->num_keys++;
         set_num_keys(new_leaf, get_num_keys(new_leaf) + 1);
     }
 
@@ -770,9 +620,7 @@ int64_t insert_into_leaf_after_splitting(int64_t leaf, int64_t key, char * value
     free(temp_keys);
 
     // Set right sibling leaf
-    //new_leaf->pointers[leaf_order - 1] = leaf->pointers[leaf_order - 1];
     set_right_sibling(new_leaf, get_right_sibling(leaf));
-    //leaf->pointers[leaf_order - 1] = new_leaf;
     set_right_sibling(leaf, new_leaf);
 
     // No need to implement
@@ -787,12 +635,12 @@ int64_t insert_into_leaf_after_splitting(int64_t leaf, int64_t key, char * value
         set_leaf_value_at(new_leaf, i, NULL);
     */
 
-    //new_leaf->parent = leaf->parent;
     set_parent_page(new_leaf, get_parent_page(leaf));
-    //new_key = new_leaf->keys[0];
     new_key = get_leaf_key_at(new_leaf, 0);
 
-    return insert_into_parent(leaf, new_key, new_leaf);
+    insert_into_parent(leaf, new_key, new_leaf);
+
+    return;
 }
 
 
@@ -800,23 +648,18 @@ int64_t insert_into_leaf_after_splitting(int64_t leaf, int64_t key, char * value
  * into a node into which these can fit
  * without violating the B+ tree properties.
  */
-int64_t insert_into_node(int64_t n, int left_index, int64_t key, int64_t right) {
+void insert_into_node(int64_t n, int left_index, int64_t key, int64_t right) {
     int i;
 
     for (i = get_num_keys(n); i > left_index; i--) {
-        //n->pointers[i + 1] = n->pointers[i];
         set_internal_value_at(n, i + 1, get_internal_value_at(n, i));
-        //n->keys[i] = n->keys[i - 1];
         set_internal_key_at(n, i, get_internal_key_at(n, i - 1));
     }
-    //n->pointers[left_index + 1] = right;
     set_internal_value_at(n, left_index + 1, right);
-    //n->keys[left_index] = key;
     set_internal_key_at(n, left_index, key);
-    //n->num_keys++;
     set_num_keys(n, get_num_keys(n) + 1);
-    // TODO : return what?
-    return get_root();
+
+    return;
 }
 
 
@@ -824,7 +667,7 @@ int64_t insert_into_node(int64_t n, int left_index, int64_t key, int64_t right) 
  * into a node, causing the node's size to exceed
  * the order, and causing the node to split into two.
  */
-int64_t insert_into_node_after_splitting(int64_t old_node, int left_index, int64_t key, int64_t right) {
+void insert_into_node_after_splitting(int64_t old_node, int left_index, int64_t key, int64_t right) {
 
     int i, j, split;
     int64_t k_prime;
@@ -870,36 +713,27 @@ int64_t insert_into_node_after_splitting(int64_t old_node, int left_index, int64
      */ 
     split = cut(order);
     new_node = make_node();
-    //old_node->num_keys = 0;
     set_num_keys(old_node, 0);
     for (i = 0; i < split - 1; i++) {
-        //old_node->pointers[i] = temp_pointers[i];
         set_internal_value_at(old_node, i, temp_pointers[i]);
-        //old_node->keys[i] = temp_keys[i];
         set_internal_key_at(old_node, i, temp_keys[i]);
-        //old_node->num_keys++;
         set_num_keys(old_node, get_num_keys(old_node) + 1);
     }
-    //old_node->pointers[i] = temp_pointers[i];
+
     set_internal_value_at(old_node, i, temp_pointers[i]);
     k_prime = temp_keys[split - 1];
     for (++i, j = 0; i < order; i++, j++) {
-        //new_node->pointers[j] = temp_pointers[i];
         set_internal_value_at(new_node, j, temp_pointers[i]);
-        //new_node->keys[j] = temp_keys[i];
         set_internal_key_at(new_node, j, temp_keys[i]);
-        //new_node->num_keys++;
         set_num_keys(new_node, get_num_keys(new_node) + 1);
     }
-    //new_node->pointers[j] = temp_pointers[i];
+
     set_internal_value_at(new_node, j, temp_pointers[i]);
     free(temp_pointers);
     free(temp_keys);
-    //new_node->parent = old_node->parent;
     set_parent_page(new_node, get_parent_page(old_node));
     for (i = 0; i <= get_num_keys(new_node); i++) {
         child = get_internal_value_at(new_node, i);
-        //child->parent = new_node;
         set_parent_page(child, new_node);
     }
 
@@ -907,16 +741,16 @@ int64_t insert_into_node_after_splitting(int64_t old_node, int left_index, int64
      * nodes resulting from the split, with
      * the old node to the left and the new to the right.
      */
-    // TODO : return what?
-    return insert_into_parent(old_node, k_prime, new_node);
+    insert_into_parent(old_node, k_prime, new_node);
+
+    return;
 }
 
 
 /* Inserts a new node (leaf or internal node) into the B+ tree.
  * Returns the root of the tree after insertion.
  */
-//node * insert_into_parent(node * root, node * left, int key, node * right) {
-int64_t insert_into_parent(int64_t left, int64_t key, int64_t right) {
+void insert_into_parent(int64_t left, int64_t key, int64_t right) {
 
     int left_index;
     int64_t parent;
@@ -925,8 +759,10 @@ int64_t insert_into_parent(int64_t left, int64_t key, int64_t right) {
 
     /* Case: new root. */
 
-    if (parent == 0)
-        return insert_into_new_root(left, key, right);
+    if (parent == 0) {
+        insert_into_new_root(left, key, right);
+        return;
+    }
 
     /* Case: leaf or node. (Remainder of
      * function body.)  
@@ -942,14 +778,17 @@ int64_t insert_into_parent(int64_t left, int64_t key, int64_t right) {
     /* Simple case: the new key fits into the node.
      */
 
-    if (get_num_keys(parent) < order - 1)
-        return insert_into_node(parent, left_index, key, right);
+    if (get_num_keys(parent) < order - 1) {
+        insert_into_node(parent, left_index, key, right);
+        return;
+    }
 
     /* Harder case:  split a node in order 
      * to preserve the B+ tree properties.
      */
 
-    return insert_into_node_after_splitting(parent, left_index, key, right);
+    insert_into_node_after_splitting(parent, left_index, key, right);
+    return;
 }
 
 
@@ -957,30 +796,19 @@ int64_t insert_into_parent(int64_t left, int64_t key, int64_t right) {
  * and inserts the appropriate key into
  * the new root.
  */
-//node * insert_into_new_root(node * left, int key, node * right) {
-int64_t insert_into_new_root(int64_t left, int64_t key, int64_t right) {
+void insert_into_new_root(int64_t left, int64_t key, int64_t right) {
 
     int64_t root = make_node();
 
-    //root->keys[0] = key;
     set_internal_key_at(root, 0, key);
-    //root->pointers[0] = left;
     set_internal_value_at(root, 0, left);
-    //root->pointers[1] = right;
     set_internal_value_at(root, 1, right);
-    //root->num_keys++;
     set_num_keys(root, get_num_keys(root) + 1);
-    //root->parent = NULL;
     set_parent_page(root, 0);
-    //left->parent = root;
     set_parent_page(left, root);
-    //right->parent = root;
     set_parent_page(right, root);
 
     set_root(root);
-    // TODO : return what?
-    // Return is not necessary
-    return root;
 }
 
 
@@ -991,15 +819,10 @@ int64_t insert_into_new_root(int64_t left, int64_t key, int64_t right) {
 void start_new_tree(int64_t key, char * value) {
 
     int64_t root = make_leaf();
-    //root->keys[0] = key;
     set_leaf_key_at(root, 0, key);
-    //root->pointers[0] = pointer;
     set_leaf_value_at(root, 0, value);
-    //root->pointers[leaf_order - 1] = NULL;
     set_right_sibling(root, 0);
-    //root->parent = NULL;
     set_parent_page(root, 0);
-    //root->num_keys++;
     set_num_keys(root, get_num_keys(root) + 1);
 
     set_root(root);
@@ -1011,8 +834,10 @@ void start_new_tree(int64_t key, char * value) {
  * the B+ tree, causing the tree to be adjusted
  * however necessary to maintain the B+ tree
  * properties.
+ *
+ * @return 0    if insertion successed
+ *         -1   if value with given key is not found
  */
-//node * insert( node * root, int key, char * value ) {
 int insert( int64_t key, char * value ) {
     
     int64_t leaf;
@@ -1042,7 +867,11 @@ int insert( int64_t key, char * value ) {
     /* Case: leaf has room for key and pointer.
      */
     if (get_num_keys(leaf) < leaf_order - 1) {
-        leaf = insert_into_leaf(leaf, key, value);
+        insert_into_leaf(leaf, key, value);
+
+        fd = fileno(data_file);
+        fdatasync(fd);
+
         return 0;
     }
 
@@ -1087,7 +916,6 @@ int get_neighbor_index( int64_t n ) {
 }
 
 
-//node * remove_entry_from_node(node * n, int key, node * pointer) {
 int64_t remove_entry_from_node(int64_t n, int64_t key) {
 
     int i, num_pointers;
@@ -1097,37 +925,22 @@ int64_t remove_entry_from_node(int64_t n, int64_t key) {
     if (get_is_leaf(n)) {
         while (get_leaf_key_at(n, i) != key)
             i++;
-        for (++i; i < get_num_keys(n); i++)
+        for (++i; i < get_num_keys(n); i++) {
             set_leaf_key_at(n, i - 1, get_leaf_key_at(n, i));
             set_leaf_value_at(n, i - 1, get_leaf_value_at(n, i));
+        }
     }
     else {
         while (get_internal_key_at(n, i) != key)
             i++;
         for (++i; i < get_num_keys(n); i++) {
             set_internal_key_at(n, i - 1, get_internal_key_at(n, i));
-            set_internal_value_at(n, i - 1, get_internal_value_at(n, i));
+            set_internal_value_at(n, i, get_internal_value_at(n, i + 1));
         }
-        set_internal_value_at(n, i - 1, get_internal_value_at(n, i));
+        //set_internal_value_at(n, i - 1, get_internal_value_at(n, i));
     }
-    /*
-    while (n->keys[i] != key)
-        i++;
-    for (++i; i < n->num_keys; i++)
-        n->keys[i - 1] = n->keys[i];
-
-    // Remove the pointer and shift other pointers accordingly.
-    // First determine number of pointers.
-    num_pointers = n->is_leaf ? n->num_keys : n->num_keys + 1;
-    i = 0;
-    while (n->pointers[i] != pointer)
-        i++;
-    for (++i; i < num_pointers; i++)
-        n->pointers[i - 1] = n->pointers[i];
-    */
 
     // One key fewer.
-    //n->num_keys--;
     set_num_keys(n, get_num_keys(n) - 1);
 
     /*
@@ -1146,11 +959,10 @@ int64_t remove_entry_from_node(int64_t n, int64_t key) {
     return n;
 }
 
-//node * adjust_root(node * root) {
-int64_t adjust_root( void ) {
 
-    int64_t root, new_root;
-    root = get_root();
+void adjust_root( int64_t root ) {
+
+    int64_t new_root;
 
     /* Case: nonempty root.
      * Key and pointer have already been deleted,
@@ -1158,7 +970,7 @@ int64_t adjust_root( void ) {
      */
 
     if (get_num_keys(root) > 0)
-        return root;
+        return;
 
     /* Case: empty root. 
      */
@@ -1169,7 +981,6 @@ int64_t adjust_root( void ) {
 
     if (!get_is_leaf(root)) {
         new_root = get_internal_value_at(root, 0);
-        //new_root->parent = NULL;
         set_parent_page(new_root, 0);
     }
 
@@ -1179,16 +990,11 @@ int64_t adjust_root( void ) {
     else
         new_root = 0;
 
+    set_root(new_root);
+
     set_next_free_page(root, get_free_page());
     set_free_page(root);
 
-    /*
-    free(root->keys);
-    free(root->pointers);
-    free(root);
-    */
-
-    return new_root;
 }
 
 
@@ -1198,8 +1004,7 @@ int64_t adjust_root( void ) {
  * can accept the additional entries
  * without exceeding the maximum.
  */
-//node * coalesce_nodes(node * root, node * n, node * neighbor, int neighbor_index, int k_prime) {
-int64_t coalesce_nodes(int64_t n, int64_t neighbor, int neighbor_index, int64_t k_prime) {
+void coalesce_nodes(int64_t n, int64_t neighbor, int neighbor_index, int64_t k_prime) {
 
     int i, j, neighbor_insertion_index;
     int32_t n_end;
@@ -1240,13 +1045,9 @@ int64_t coalesce_nodes(int64_t n, int64_t neighbor, int neighbor_index, int64_t 
         n_end = get_num_keys(n);
 
         for (i = neighbor_insertion_index + 1, j = 0; j < n_end; i++, j++) {
-            //neighbor->keys[i] = n->keys[j];
             set_internal_key_at(neighbor, i, get_internal_key_at(n, j));
-            //neighbor->pointers[i] = n->pointers[j];
             set_internal_value_at(neighbor, i, get_internal_value_at(n, j));
-            //neighbor->num_keys++;
             set_num_keys(neighbor, get_num_keys(neighbor) + 1);
-            //n->num_keys--;
             set_num_keys(n, get_num_keys(n) - 1);
         }
 
@@ -1254,16 +1055,13 @@ int64_t coalesce_nodes(int64_t n, int64_t neighbor, int neighbor_index, int64_t 
          * one more than the number of keys.
          */
 
-        //neighbor->pointers[i] = n->pointers[j];
         set_internal_value_at(neighbor, i, get_internal_value_at(n, j));
 
         /* All children must now point up to the same parent.
          */
         // TODO : optimize
         for (i = 0; i < get_num_keys(neighbor) + 1; i++) {
-            //tmp = (node *)neighbor->pointers[i];
             tmp = get_internal_value_at(neighbor, i);
-            //tmp->parent = neighbor;
             set_parent_page(tmp, neighbor);
         }
     }
@@ -1276,24 +1074,17 @@ int64_t coalesce_nodes(int64_t n, int64_t neighbor, int neighbor_index, int64_t 
 
     else {
         for (i = neighbor_insertion_index, j = 0; j < get_num_keys(n); i++, j++) {
-            //neighbor->keys[i] = n->keys[j];
             set_leaf_key_at(neighbor, i, get_leaf_key_at(n, j));
-            //neighbor->pointers[i] = n->pointers[j];
             set_leaf_value_at(neighbor, i, get_leaf_value_at(n, j));
-            //neighbor->num_keys++;
             set_num_keys(neighbor, get_num_keys(neighbor) + 1);
         }
-        //neighbor->pointers[leaf_order - 1] = n->pointers[leaf_order - 1];
         set_right_sibling(neighbor, get_right_sibling(n));
     }
 
-    set_root( delete_entry(get_parent_page(n), k_prime) );
-    /*
-    free(n->keys);
-    free(n->pointers);
-    free(n);
-    */
-    return get_root();
+    delete_entry(get_parent_page(n), k_prime);
+    
+    set_next_free_page(n, get_free_page());
+    set_free_page(n);
 }
 
 
@@ -1303,10 +1094,8 @@ int64_t coalesce_nodes(int64_t n, int64_t neighbor, int neighbor_index, int64_t 
  * small node's entries without exceeding the
  * maximum
  */
-//node * redistribute_nodes(node * root, node * n, node * neighbor, int neighbor_index, 
-//        int k_prime_index, int k_prime) { 
-int64_t redistribute_nodes(int64_t n, int64_t neighbor, int neighbor_index, 
-        int k_prime_index, int64_t k_prime) { 
+void redistribute_nodes(int64_t n, int64_t neighbor, int neighbor_index, 
+                            int k_prime_index, int64_t k_prime) { 
 
     int i;
     int64_t tmp;
@@ -1321,59 +1110,29 @@ int64_t redistribute_nodes(int64_t n, int64_t neighbor, int neighbor_index,
             //n->pointers[n->num_keys + 1] = n->pointers[n->num_keys];
             set_internal_value_at( n, get_num_keys(n) + 1, get_internal_value_at(n, get_num_keys(n)) );
             for (i = get_num_keys(n); i > 0; i--) {
-                //n->keys[i] = n->keys[i - 1];
                 set_internal_key_at(n, i, get_internal_key_at(n, i - 1));
-                //n->pointers[i] = n->pointers[i - 1];
                 set_internal_value_at(n, i, get_internal_value_at(n, i - 1));
 
-                //n->pointers[0] = neighbor->pointers[neighbor->num_keys];
                 set_internal_value_at( n, 0, get_internal_value_at(neighbor, get_num_keys(neighbor)) );
-                //tmp = (node *)n->pointers[0];
                 tmp = get_internal_value_at(n, 0);
-                //tmp->parent = n;
                 set_parent_page(tmp, n);
-                //neighbor->pointers[neighbor->num_keys] = NULL;
                 set_internal_value_at(neighbor, get_num_keys(neighbor), 0);
-                //n->keys[0] = k_prime;
                 set_internal_key_at(n, 0, k_prime);
-                //n->parent->keys[k_prime_index] = neighbor->keys[neighbor->num_keys - 1];
                 set_internal_key_at( get_parent_page(n), k_prime_index, 
                                     get_internal_key_at(neighbor, get_num_keys(neighbor) - 1) );
             }
         }
         else {
             for (i = get_num_keys(n); i > 0; i--) {
-                //n->keys[i] = n->keys[i - 1];
                 set_leaf_key_at(n, i, get_leaf_key_at(n, i - 1));
-                //n->pointers[i] = n->pointers[i - 1];
                 set_leaf_value_at(n, i, get_leaf_value_at(n, i - 1));
 
-                //n->pointers[0] = neighbor->pointers[neighbor->num_keys - 1];
                 set_leaf_value_at( n, 0, get_leaf_value_at(neighbor, get_num_keys(neighbor) - 1) );
-                //neighbor->pointers[neighbor->num_keys - 1] = NULL;
                 set_leaf_value_at(neighbor, get_num_keys(neighbor) - 1, 0);
-                //n->keys[0] = neighbor->keys[neighbor->num_keys - 1];
                 set_leaf_key_at( n, 0, get_leaf_key_at(neighbor, get_num_keys(neighbor) - 1) );
-                //n->parent->keys[k_prime_index] = n->keys[0];
                 set_internal_key_at(get_parent_page(n), k_prime_index, get_leaf_key_at(n, 0));
             }
         }
-        /*
-        if (!get_is_leaf(n)) {
-            n->pointers[0] = neighbor->pointers[neighbor->num_keys];
-            tmp = (node *)n->pointers[0];
-            tmp->parent = n;
-            neighbor->pointers[neighbor->num_keys] = NULL;
-            n->keys[0] = k_prime;
-            n->parent->keys[k_prime_index] = neighbor->keys[neighbor->num_keys - 1];
-        }
-        else {
-            n->pointers[0] = neighbor->pointers[neighbor->num_keys - 1];
-            neighbor->pointers[neighbor->num_keys - 1] = NULL;
-            n->keys[0] = neighbor->keys[neighbor->num_keys - 1];
-            n->parent->keys[k_prime_index] = n->keys[0];
-        }
-        */
     }
 
     /* Case: n is the leftmost child.
@@ -1384,55 +1143,35 @@ int64_t redistribute_nodes(int64_t n, int64_t neighbor, int neighbor_index,
 
     else {  
         if (get_is_leaf(n)) {
-            //n->keys[n->num_keys] = neighbor->keys[0];
             set_leaf_key_at(n, get_num_keys(n), get_leaf_key_at(neighbor, 0));
-            //n->pointers[n->num_keys] = neighbor->pointers[0];
             set_leaf_value_at(n, get_num_keys(n), get_leaf_value_at(neighbor, 0));
-            //n->parent->keys[k_prime_index] = neighbor->keys[1];
             set_internal_key_at(get_parent_page(n), k_prime_index, get_leaf_key_at(neighbor, 1));
 
             for (i = 0; i < get_num_keys(neighbor) - 1; i++) {
-                //neighbor->keys[i] = neighbor->keys[i + 1];
                 set_leaf_key_at(neighbor, i, get_leaf_key_at(neighbor, i + 1));
-                //neighbor->pointers[i] = neighbor->pointers[i + 1];
                 set_leaf_value_at(neighbor, i, get_leaf_value_at(neighbor, i + 1));
             }
         }
         else {
-            //n->keys[n->num_keys] = k_prime;
             set_internal_key_at(n, get_num_keys(n), k_prime);
-            //n->pointers[n->num_keys + 1] = neighbor->pointers[0];
             set_internal_value_at(n, get_num_keys(n) + 1, get_internal_value_at(neighbor, 0));
-            //tmp = (node *)n->pointers[n->num_keys + 1];
             tmp = get_internal_value_at(n, get_num_keys(n) + 1);
-            //tmp->parent = n;
             set_parent_page(tmp, n);
-            //n->parent->keys[k_prime_index] = neighbor->keys[0];
             set_internal_key_at(get_parent_page(n), k_prime_index, get_internal_key_at(neighbor, 0));
 
             for (i = 0; i < get_num_keys(neighbor) - 1; i++) {
-                //neighbor->keys[i] = neighbor->keys[i + 1];
                 set_internal_key_at(neighbor, i, get_internal_key_at(neighbor, i + 1));
-                //neighbor->pointers[i] = neighbor->pointers[i + 1];
                 set_internal_value_at(neighbor, i, get_internal_value_at(neighbor, i + 1));
             }
-        }
-        if (!get_is_leaf(n))
-            //neighbor->pointers[i] = neighbor->pointers[i + 1];
             set_internal_value_at(neighbor, i, get_internal_value_at(neighbor, i + 1));
+        }
     }
 
     /* n now has one more key and one more pointer;
      * the neighbor has one fewer of each.
      */
-
-    //n->num_keys++;
     set_num_keys(n, get_num_keys(n) + 1);
-    //neighbor->num_keys--;
     set_num_keys(neighbor, get_num_keys(neighbor) - 1);
-
-    //return root;
-    return get_root();
 }
 
 
@@ -1441,8 +1180,7 @@ int64_t redistribute_nodes(int64_t n, int64_t neighbor, int neighbor_index,
  * from the leaf, and then makes all appropriate
  * changes to preserve the B+ tree properties.
  */
-//node * delete_entry( node * root, node * n, int key, void * pointer ) {
-int64_t delete_entry( int64_t n, int64_t key ) {
+void delete_entry( int64_t n, int64_t key ) {
 
     int min_keys;
     int64_t neighbor;
@@ -1457,8 +1195,10 @@ int64_t delete_entry( int64_t n, int64_t key ) {
     /* Case:  deletion from the root. 
      */
 
-    if (n == get_root())
-        return adjust_root();
+    if (n == get_root()) {
+        adjust_root(n);
+        return;
+    }
 
 
     /* Case:  deletion from a node below the root.
@@ -1476,7 +1216,7 @@ int64_t delete_entry( int64_t n, int64_t key ) {
      */
 
     if (get_num_keys(n) >= min_keys)
-        return get_root();
+        return;
 
     /* Case:  node falls below minimum.
      * Either coalescence or redistribution
@@ -1500,13 +1240,17 @@ int64_t delete_entry( int64_t n, int64_t key ) {
 
     /* Coalescence. */
 
-    if (get_num_keys(neighbor) + get_num_keys(n) < capacity)
-        return coalesce_nodes(n, neighbor, neighbor_index, k_prime);
+    if (get_num_keys(neighbor) + get_num_keys(n) < capacity) {
+        coalesce_nodes(n, neighbor, neighbor_index, k_prime);
+        return;
+    }
 
     /* Redistribution. */
 
-    else
-        return redistribute_nodes(n, neighbor, neighbor_index, k_prime_index, k_prime);
+    else {
+        redistribute_nodes(n, neighbor, neighbor_index, k_prime_index, k_prime);
+        return;
+    }
 }
 
 
@@ -1521,14 +1265,13 @@ int delete( int64_t key ) {
     key_record = find(key);
     key_leaf = find_leaf(key);
     if (key_record != NULL && key_leaf != 0) {
-        set_root(delete_entry(key_leaf, key));
+        delete_entry(key_leaf, key);
         free(key_record);
     }
     // The value with key is not found.
     if (key_record == NULL) {
         return -1;
     }
-
 
     fd = fileno(data_file);
     fdatasync(fd);

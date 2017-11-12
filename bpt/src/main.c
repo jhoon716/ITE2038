@@ -6,29 +6,12 @@ int main( int argc, char ** argv ) {
 
     char * input_file;
     FILE * fp;
-    node * root;
     int input, range2;
     char input2[120];
     char instruction;
     char license_part;
     char pathname[150];
     int result;
-
-    char * input3 = (char *) malloc(sizeof(char) * 120);
-
-    root = NULL;
-    verbose_output = false;
-
-    /*
-    if (argc > 1) {
-        order = atoi(argv[1]);
-        if (order < MIN_ORDER || order > MAX_ORDER) {
-            fprintf(stderr, "Invalid order: %d .\n\n", order);
-            usage_3();
-            exit(EXIT_FAILURE);
-        }
-    }
-    */
 
     license_notice();
     usage_1();  
@@ -48,23 +31,31 @@ int main( int argc, char ** argv ) {
             exit(EXIT_FAILURE);
         }
         while (!feof(fp)) {
-            fscanf(fp, "%d %s\n", &input, input3);
-            insert(input, input3);
+            fscanf(fp, "i %d %s\n", &input, input2);
+            insert(input, input2);
         }
         fclose(fp);
         print_tree();
     }
 
+    if (argc == 1) {
+        printf("> ");
+        while (scanf("%c", &instruction) != EOF && instruction != 'o') {
+            if (instruction == 'q') return EXIT_SUCCESS;
+            printf("Plese open data file first.\n");
+            while (getchar() != (int)'\n');
+            printf("> ");
+        }
+        scanf("%s", pathname);
+        if (open_db(pathname) != 0) {
+            perror("Failure open db file.");
+        }
+        while (getchar() != (int)'\n');
+    }
 
     printf("> ");
     while (scanf("%c", &instruction) != EOF) {
         switch (instruction) {
-        case 'o':
-            scanf("%s", pathname);
-            if (open_db(pathname) != 0) {
-                perror("Failure open db file.");
-            }
-            break;
         case 'd':
             scanf("%d", &input);
             result = delete(input);
@@ -77,9 +68,8 @@ int main( int argc, char ** argv ) {
             print_tree();
             break;
         case 'i':
-            scanf("%d %s", &input, input3);
-            //printf("%d\n", insert(input, input2));
-            insert(input, input3);
+            scanf("%d %s", &input, input2);
+            insert(input, input2);
             print_tree();
             break;
         case 'f':
@@ -106,9 +96,6 @@ int main( int argc, char ** argv ) {
             break;
         case 't':
             print_tree();
-            break;
-        case 'v':
-            verbose_output = !verbose_output;
             break;
         /*
         case 'x':
